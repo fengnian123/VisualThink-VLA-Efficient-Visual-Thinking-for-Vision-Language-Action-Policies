@@ -1,38 +1,71 @@
-# EIGT: Efficient Image-Grounded Thinking for Vision-Language-Action Policies
+# EIGT
 
-[![Python](https://img.shields.io/badge/Python-3.10-blue.svg)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.x-ee4c2c.svg)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-research%20code-slategray.svg)](#release-scope)
+### Efficient Image-Grounded Thinking for Vision-Language-Action Policies
 
-This repository contains the research code for **EIGT**, a lightweight evidence-routing layer for
-Vision-Language-Action (VLA) policies. EIGT keeps the base VLA frozen and dynamically routes a sparse set of
-image-grounded evidence channels into the policy, making inference more efficient while preserving an auditable
-route-and-rationale trace.
+<p align="center">
+  <a href="https://www.python.org/"><img alt="Python" src="https://img.shields.io/badge/Python-3.10-2f6f9f?style=flat-square"></a>
+  <a href="https://pytorch.org/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-2.x-c95f3f?style=flat-square"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/License-MIT-2f8f68?style=flat-square"></a>
+  <img alt="Status" src="https://img.shields.io/badge/status-research%20code-475569?style=flat-square">
+</p>
 
-The implementation is built on top of the public [OpenVLA](https://github.com/openvla/openvla) codebase and adds
-the EIGT feature extraction, sparse routing, soft-evidence adapter, trace governance, and ablation scripts used by
-the paper.
+<p align="center">
+  <b>EIGT</b> adds a sparse, auditable, image-grounded evidence interface to frozen VLA policies.
+  Instead of asking the policy to verbalize long chains of thought, it routes compact visual cues
+  such as <code>bbox</code>, <code>edge</code>, <code>motion</code>, and <code>relation</code>
+  through learned soft evidence states before action decoding.
+</p>
 
-## What EIGT Adds
+<p align="center">
+  <img src="assets/method_overview.png" width="92%" alt="EIGT method overview">
+</p>
 
-- **Sparse evidence routing:** select a small subset of visual evidence channels per control step.
-- **Soft evidence interface:** inject selected evidence into a frozen OpenVLA-style policy without dense perception at every step.
-- **Traceable decisions:** emit route masks, selected evidence, visual rationales, utility ranks, and audit metrics.
-- **Paper workflows:** scripts for channel screening, feature ablations, recipe ablations, trace audits, and benchmark summaries.
+## Why EIGT?
 
-```mermaid
-flowchart LR
-    A[RGB / wrist observation] --> B[Evidence bank]
-    B --> C{Dynamic route}
-    C -->|bbox| D[Selected evidence]
-    C -->|edge| D
-    C -->|motion| D
-    C -->|relation| D
-    D --> E[Soft evidence adapter]
-    E --> F[Frozen VLA action decoder]
-    C --> G[EvidenceTrace audit]
-```
+Modern VLA policies usually act from raw images and language alone. Adding reasoning can help, but long text traces
+and dense auxiliary perception are expensive in closed-loop control. EIGT takes a lighter path:
+
+| Design Goal | EIGT Choice |
+| --- | --- |
+| Keep control efficient | Route only a sparse subset of evidence channels per step. |
+| Stay image-grounded | Use structured visual cues instead of verbose prompt text. |
+| Preserve the base policy | Freeze the VLA backbone and train a small evidence adapter. |
+| Make behavior inspectable | Export route masks, utility ranks, and channel-grounded rationales. |
+
+## Main Results at a Glance
+
+<p align="center">
+  <img src="assets/benchmark_tradeoff.png" width="92%" alt="Benchmark success-latency tradeoff">
+</p>
+
+EIGT is designed for the success-latency tradeoff: it keeps the action path close to the frozen VLA policy while
+selectively injecting only the evidence channels needed for the current step.
+
+<p align="center">
+  <img src="assets/channel_screening.png" width="82%" alt="Evidence channel screening dashboard">
+</p>
+
+The final evidence bank is intentionally compact. Heavy or weakly routed candidates such as depth, segmentation,
+and caption/query-style text are screened out when they add cost without robust sparse-route utility.
+
+## EvidenceTrace-VLA
+
+EIGT also builds an audit layer, **EvidenceTrace-VLA**, that records what evidence was routed and why.
+
+<p align="center">
+  <img src="assets/evidencetrace_pipeline.png" width="92%" alt="EvidenceTrace-VLA construction pipeline">
+</p>
+
+Each trace stores the instruction, route mask, selected evidence names, counterfactual utility ranking, compact
+channel snippets, channel-grounded rationale, and action intent. These traces support both supervision and
+faithfulness diagnostics.
+
+<p align="center">
+  <img src="assets/routing_stage_sensitivity.png" width="78%" alt="Routing stage sensitivity">
+</p>
+
+The route is not just a static channel subset: selected evidence changes across manipulation stages such as
+approach, grasp, and place.
 
 ## Repository Layout
 
@@ -44,6 +77,7 @@ scripts/              Feature extraction, training, benchmarking, trace, and sum
 prismatic/            OpenVLA/Prismatic base code
 vla-scripts/          OpenVLA training and deployment entry points
 docs/                 Practical setup and reproducibility notes
+assets/               Paper figures used by this project page
 ```
 
 ## Quick Start
@@ -76,8 +110,7 @@ bash commands/project/02_check_env.sh
 
 ## Core Workflow
 
-The scripts are numbered in the order used by the project. Most commands write to
-`runs/$RUN_NAME/`, which is intentionally ignored by git.
+Most commands write to `runs/$RUN_NAME/`, which is intentionally ignored by git.
 
 ```bash
 # 1. Extract a proportional RLDS subset and visual/evidence features.
@@ -99,19 +132,6 @@ bash commands/project/22_benchmark_evidence_trace_faithfulness.sh
 
 See [docs/PIPELINE.md](docs/PIPELINE.md) for the longer paper-oriented workflow, including ablations.
 
-## Release Scope
-
-This repository includes source code, configuration files, and run recipes only.
-
-It intentionally does **not** include:
-
-- robot/RLDS datasets,
-- pretrained or fine-tuned model weights,
-- generated traces, cached features, or benchmark outputs,
-- paper result tables, local logs, or `wandb` runs.
-
-Use the scripts to regenerate those artifacts locally after downloading the required datasets and base checkpoints.
-
 ## Main Entry Points
 
 - `models/evidence_gating.py`: learned dynamic evidence router.
@@ -119,6 +139,19 @@ Use the scripts to regenerate those artifacts locally after downloading the requ
 - `scripts/build_evidence_trace_dataset.py`: converts routed evidence into auditable EvidenceTrace rows.
 - `scripts/benchmark_evidencetrace_audit_methods.py`: builds the supervision/audit table used by the paper.
 - `commands/project/46_launch_evidencetrace_audit_table_tmux.sh`: tmux launcher for the audit benchmark.
+
+## Release Scope
+
+This repository includes source code, configuration files, run recipes, and paper-page assets.
+
+It intentionally does **not** include:
+
+- robot/RLDS datasets,
+- pretrained or fine-tuned model weights,
+- generated traces, cached features, or benchmark outputs,
+- local logs or `wandb` runs.
+
+Use the scripts to regenerate those artifacts locally after downloading the required datasets and base checkpoints.
 
 ## Citation
 

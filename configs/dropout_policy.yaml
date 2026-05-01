@@ -1,0 +1,12 @@
+approach:
+  bbox: 0.10
+  depth: 0.20
+  edge: 0.20
+grasp:
+  bbox: 0.70
+  depth: 0.20
+  edge: 0.30
+place:
+  bbox: 0.30
+  depth: 0.40
+  edge: 0.40

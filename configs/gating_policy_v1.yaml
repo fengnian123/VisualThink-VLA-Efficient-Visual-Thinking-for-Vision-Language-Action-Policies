@@ -1,0 +1,76 @@
+channels:
+  bbox:
+    cost: 1.0
+  depth:
+    cost: 0.8
+  edge:
+    cost: 0.2
+
+stage_keep_priors:
+  approach:
+    bbox: 0.70
+    depth: 0.55
+    edge: 0.85
+  grasp:
+    bbox: 0.20
+    depth: 0.35
+    edge: 0.75
+  place:
+    bbox: 0.55
+    depth: 0.40
+    edge: 0.75
+
+stage_budget_priors:
+  approach: [0.10, 0.65, 0.25]
+  grasp: [0.55, 0.35, 0.10]
+  place: [0.20, 0.60, 0.20]
+
+loss_weights:
+  action: 1.0
+  distill: 0.7
+  cost: 0.01
+  prior: 0.08
+  budget: 0.20
+  coverage: 0.08
+  entropy: 0.01
+
+gating:
+  temperature_start: 2.0
+  temperature_end: 0.5
+  threshold: 0.5
+  fallback_entropy_thresh: 0.85
+  fallback_min_missing_channels: 3
+  fallback_disturbed_only: true
+
+coverage:
+  approach:
+    bbox: 0.45
+    depth: 0.35
+    edge: 0.55
+  grasp:
+    bbox: 0.10
+    depth: 0.30
+    edge: 0.45
+  place:
+    bbox: 0.30
+    depth: 0.25
+    edge: 0.45
+
+model:
+  image_size: 64
+  bow_dim: 256
+  ctx_dim: 128
+  channel_dim: 64
+  teacher_hidden: 512
+  student_hidden: 256
+
+training:
+  teacher_epochs: 4
+  gate_warmup_epochs: 2
+  joint_epochs: 6
+  batch_size: 32
+  val_ratio: 0.1
+  lr_teacher: 2.0e-4
+  lr_student: 2.0e-4
+  lr_gate: 1.0e-4
+  weight_decay: 1.0e-4

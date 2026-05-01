@@ -1,0 +1,8 @@
+EIGT extends the OpenVLA / Prismatic VLA research codebase.
+
+The original OpenVLA code is released under the MIT License. EIGT-specific
+additions include sparse evidence routing, soft-evidence adapters, EvidenceTrace
+generation/governance scripts, and paper ablation workflows.
+
+This repository does not redistribute datasets, trained checkpoints, or generated
+benchmark artifacts.

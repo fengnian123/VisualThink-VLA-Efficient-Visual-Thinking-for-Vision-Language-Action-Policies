@@ -1,6 +1,6 @@
-# EIGT
+# VisualThink-VLA
 
-### Efficient Image-Grounded Thinking for Vision-Language-Action Policies
+### VisualThink-VLA: Efficient Visual Thinking for Vision-Language-Action Policies
 
 <p align="center">
   <a href="https://www.python.org/"><img alt="Python" src="https://img.shields.io/badge/Python-3.10-2f6f9f?style=flat-square"></a>

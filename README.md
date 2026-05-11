@@ -10,62 +10,126 @@
 </p>
 
 <p align="center">
-  <b>EIGT</b> adds a sparse, auditable, image-grounded evidence interface to frozen VLA policies.
-  Instead of asking the policy to verbalize long chains of thought, it routes compact visual cues
-  such as <code>bbox</code>, <code>edge</code>, <code>motion</code>, and <code>relation</code>
-  through learned soft evidence states before action decoding.
+  <b>EIGT</b> is a sparse soft-evidence routing recipe for vision-language-action policies.
+  It lets a frozen VLA policy <b>think with images</b> by consulting compact visual cues before action decoding,
+  instead of relying only on raw pixels, long textual chain-of-thought, or always-on dense perception.
 </p>
 
 <p align="center">
   <img src="assets/method_overview.png" width="92%" alt="EIGT method overview">
 </p>
 
-## Why EIGT?
+## Paper Status
 
-Modern VLA policies usually act from raw images and language alone. Adding reasoning can help, but long text traces
-and dense auxiliary perception are expensive in closed-loop control. EIGT takes a lighter path:
+This repository tracks the current EMNLP 2026 paper version. The latest manuscript evaluates EIGT through four
+complementary tracks:
 
-| Design Goal | EIGT Choice |
+| Track | Role in the Paper |
 | --- | --- |
-| Keep control efficient | Route only a sparse subset of evidence channels per step. |
-| Stay image-grounded | Use structured visual cues instead of verbose prompt text. |
-| Preserve the base policy | Freeze the VLA backbone and train a small evidence adapter. |
-| Make behavior inspectable | Export route masks, utility ranks, and channel-grounded rationales. |
+| Multi-dataset control benchmark | Main success-latency comparison across real-world, simulation, and long-horizon tasks |
+| EvidenceTrace-VLA supervision and audit | Checks routed evidence, written rationales, and counterfactual utility alignment |
+| Real-robot closed-loop study | Deployment-time evaluation track for policy cadence and task completion |
+| Supplementary transfer and ablation analyses | Channel screening, routing recipe ablations, task slices, and expanded diagnostics |
 
-## Main Results at a Glance
+The current implementation uses OpenVLA as the concrete token-based VLA backbone, but the evidence bank, router,
+EvidenceTrace construction, and quality-governance layer are defined at the VLA-interface level.
+
+## Main Benchmark Snapshot
+
+The main table compares recent VLA-thinking methods by their reasoning interface: textual CoT, reinforced or
+hybrid thinking-action decoding, spatial/image-grounded thinking, and the matched OpenVLA-family re-evaluation
+used for EIGT.
+
+| Benchmark | EIGT Success (%) | Avg. Step Latency (s) |
+| --- | ---: | ---: |
+| BridgeData V2 | **89.49** | 0.367 |
+| Fractal | **90.82** | 0.367 |
+| RoboTurk | 96.10 | 0.415 |
+| LIBERO-Object | 97.74 | 0.385 |
+| LIBERO-Goal | 97.05 | 0.345 |
+| LIBERO-Spatial | **96.69** | 0.356 |
+| LIBERO-Long | 95.87 | 0.421 |
+| UT Austin MUTEX | **77.26** | 0.451 |
 
 <p align="center">
   <img src="assets/benchmark_tradeoff.png" width="92%" alt="Benchmark success-latency tradeoff">
 </p>
 
-EIGT is designed for the success-latency tradeoff: it keeps the action path close to the frozen VLA policy while
-selectively injecting only the evidence channels needed for the current step.
+The core empirical claim is that sparse image-grounded evidence routing can stay competitive with recent
+VLA-thinking pipelines while avoiding the full runtime cost of long text traces or dense multimodal reasoning.
+
+## Why Sparse Image-Grounded Thinking?
+
+Real robot observations often contain compact structure that is easy to extract but hard for a generic VLA to use
+reliably from raw pixels alone: coarse object localization, geometric edges, short-horizon motion, and
+instruction-grounded spatial relations. EIGT exposes these cues through learned soft evidence states and then
+selects only the channels needed for the current control step.
+
+| Design Goal | EIGT Choice |
+| --- | --- |
+| Keep control efficient | Route a sparse subset of evidence channels per step. |
+| Stay visually grounded | Use structured visual cues rather than verbose prompt text. |
+| Preserve the base policy | Freeze the VLA backbone and train lightweight evidence modules. |
+| Make behavior inspectable | Export route masks, utility ranks, and channel-grounded traces. |
+
+## Evidence Channel Screening
 
 <p align="center">
-  <img src="assets/channel_screening.png" width="82%" alt="Evidence channel screening dashboard">
+  <img src="assets/channel_screening.png" width="88%" alt="Evidence channel screening dashboard">
 </p>
 
-The final evidence bank is intentionally compact. Heavy or weakly routed candidates such as depth, segmentation,
-and caption/query-style text are screened out when they add cost without robust sparse-route utility.
+The final routed evidence bank is intentionally compact:
+
+```text
+bbox, edge, motion, relation
+```
+
+The paper screens out monocular depth, segmentation, and caption/query-style text because they are expensive,
+unstable, redundant with cheaper cues, not naturally routeable, or weakly selected by the sparse router. The
+screening result supports the interface design choice: a compact routed evidence bank is preferable to simply
+adding every available visual or textual cue.
 
 ## EvidenceTrace-VLA
 
-EIGT also builds an audit layer, **EvidenceTrace-VLA**, that records what evidence was routed and why.
+EIGT includes an audit and supervision layer called **EvidenceTrace-VLA**. Each trace stores the instruction,
+route mask, selected evidence names, counterfactual utility ranking, compact channel snippets, a channel-grounded
+visual rationale, and an action-intent summary.
 
 <p align="center">
   <img src="assets/evidencetrace_pipeline.png" width="92%" alt="EvidenceTrace-VLA construction pipeline">
 </p>
 
-Each trace stores the instruction, route mask, selected evidence names, counterfactual utility ranking, compact
-channel snippets, channel-grounded rationale, and action intent. These traces support both supervision and
-faithfulness diagnostics.
+The current governed EvidenceTrace-VLA export contains:
+
+| Subset | Rows |
+| --- | ---: |
+| Raw governed rows | 942,836 |
+| Full-Clean | 923,663 |
+| HQ-Trace | 877,783 |
+| Gold-Faithfulness | 754,690 |
+
+These subsets serve different roles: Full-Clean supports broad statistics and weighted training, HQ-Trace supports
+trace-supervised refinement, and Gold-Faithfulness is reserved for high-confidence audit experiments.
+
+## Route and Faithfulness Diagnostics
 
 <p align="center">
   <img src="assets/routing_stage_sensitivity.png" width="78%" alt="Routing stage sensitivity">
 </p>
 
-The route is not just a static channel subset: selected evidence changes across manipulation stages such as
-approach, grasp, and place.
+EvidenceTrace-VLA is not treated as another control benchmark. It tests whether routed evidence, rationale text,
+and counterfactual interventions remain aligned. In the current paper, EIGT obtains the strongest trace score
+and utility-mention score while preserving a sparse channel budget:
+
+| Method | Trace Score | Routed Evidence | Utility-Mention | Avg. Selected Channels |
+| --- | ---: | :---: | ---: | ---: |
+| Prompt-text evidence | 0.3905 | No | 0.7684 | 4.00 |
+| Heavy dense perception | 0.4405 | Yes | 0.7552 | 2.22 |
+| FullSoft | 0.7905 | Yes | 0.9607 | 4.00 |
+| EIGT | **0.8395** | Yes | **0.9835** | 2.22 |
+
+The routing analysis aggregates governed traces across all EvidenceTrace-VLA sources and shows that selected
+channels change across manipulation stages such as approach, grasp, and place.
 
 ## Repository Layout
 
